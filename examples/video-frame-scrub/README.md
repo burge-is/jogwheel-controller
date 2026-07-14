@@ -8,6 +8,8 @@ This example renders no wheel, but retains jogwheel mechanics. The full-screen v
 - Angular direction and distance control frame direction and distance.
 - One degree of platter rotation requests one video frame.
 - A quick release coasts using the measured angular velocity and platter drag.
+- Touching a coasting platter stops it immediately.
+- A tap without meaningful rotation toggles video play/pause.
 - Left and right arrow keys request one frame.
 - Requested and actually presented frame numbers are shown separately.
 - Frame requests are backpressured through `requestVideoFrameCallback`, keeping wanted and shown within one frame while additional movement waits in a queue.

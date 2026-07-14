@@ -11,6 +11,7 @@ const fullscreenButton = document.querySelector("#fullscreen");
 const TAU = Math.PI * 2;
 const FRAMES_PER_REVOLUTION = 360;
 const COAST_DRAG = 4.8;
+const TAP_ROTATION_LIMIT = TAU / 180; // two degrees
 
 let objectUrl = null;
 let targetFrame = 0;
@@ -21,6 +22,9 @@ let frameRemainder = 0;
 let coastRequest = 0;
 let coastVelocity = 0;
 let coastTime = 0;
+let gestureRotation = 0;
+let gestureWasPlaying = false;
+let tapStoppedSpin = false;
 
 const frameRate = () => Math.max(1, Number(fpsInput.value) || 30);
 const frameCount = () => Number.isFinite(video.duration)
@@ -99,19 +103,33 @@ const gesture = new JogWheel(stage, {
 });
 
 gesture.addEventListener("start", () => {
+  gestureRotation = 0;
+  gestureWasPlaying = !video.paused;
+  tapStoppedSpin = Boolean(coastRequest || queuedFrames);
   stopCoast();
+  queuedFrames = 0;
   stage.classList.add("dragging");
   video.pause();
 });
 
 gesture.addEventListener("move", event => {
   if (!video.src) return;
-  applyRotation(event.detail.deltaAngle || 0);
+  const deltaAngle = event.detail.deltaAngle || 0;
+  gestureRotation += Math.abs(deltaAngle);
+  applyRotation(deltaAngle);
 });
 
 gesture.addEventListener("end", event => {
   stage.classList.remove("dragging");
   frameRemainder = 0;
+
+  if (gestureRotation <= TAP_ROTATION_LIMIT) {
+    // A tap arrests an already coasting platter. Otherwise it acts as the
+    // transport button, toggling the state captured before pointerdown.
+    if (!tapStoppedSpin && video.src && !gestureWasPlaying) video.play().catch(() => {});
+    return;
+  }
+
   coastVelocity = Number(event.detail.velocity) || 0;
   if (video.src && Math.abs(coastVelocity) > 0.12) {
     coastTime = performance.now();
