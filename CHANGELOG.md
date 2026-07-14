@@ -5,7 +5,7 @@ This project follows [Semantic Versioning](https://semver.org/).
 ## Unreleased
 
 - Added visual-free relative gesture mode with raw pointer movement deltas.
-- Added a full-screen, one-pixel-per-frame video scrubbing example.
+- Added a full-screen invisible-platter video example with one-degree-per-frame rotation and release coasting.
 
 ## 1.0.0
 
