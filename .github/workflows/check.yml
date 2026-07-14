@@ -1,0 +1,22 @@
+name: Check
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: node --check src/JogWheel.js
+      - run: node --check examples/dual-dj/app.js
+      - run: node --check examples/dual-dj/scratch-worklet.js
+      - run: node --check server.js
+      - run: node --test
