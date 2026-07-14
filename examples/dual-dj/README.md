@@ -12,7 +12,7 @@ From the repository root, install Node.js 18 or newer and run:
 node server.js
 ```
 
-Open <http://127.0.0.1:8787/> and stop the server with <kbd>Ctrl</kbd>+<kbd>C</kbd>.
+Open <http://127.0.0.1:8787/examples/dual-dj/> and stop the server with <kbd>Ctrl</kbd>+<kbd>C</kbd>.
 
 ## Controls
 

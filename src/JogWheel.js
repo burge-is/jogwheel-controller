@@ -1,6 +1,9 @@
 import { TAU, clamp, fitVelocity, wrapAngle } from "./math.js";
 
 const DEFAULTS = Object.freeze({
+  mode: "circular",
+  axis: "x",
+  radiansPerPixel: TAU / 360,
   deadZone: 0.25,
   authorityWidth: 0.2,
   maxDelta: 1.1,
@@ -8,21 +11,29 @@ const DEFAULTS = Object.freeze({
   maxVelocity: 80,
   keyboard: true,
   keyboardStep: Math.PI / 36,
-  preventDefault: true
+  preventDefault: true,
+  filter: null
 });
 
 /**
- * Turns any circular DOM element into a dependency-free jogwheel controller.
- * The controller reports radians only; mapping rotation to media is up to the
- * consuming application.
+ * Converts circular or relative pointer gestures into a common angular event
+ * stream. Rendering is optional and always belongs to the consuming app.
  */
 export class JogWheel extends EventTarget {
   constructor(element, options = {}) {
     super();
-    if (!(element instanceof Element)) throw new TypeError("JogWheel requires a DOM Element");
+    if (typeof Element === "undefined" || !(element instanceof Element)) {
+      throw new TypeError("JogWheel requires a DOM Element");
+    }
 
     this.element = element;
     this.options = { ...DEFAULTS, ...options };
+    if (!['circular', 'relative'].includes(this.options.mode)) {
+      throw new TypeError('mode must be "circular" or "relative"');
+    }
+    if (!['x', 'y'].includes(this.options.axis)) {
+      throw new TypeError('axis must be "x" or "y"');
+    }
     this.angle = Number(options.angle) || 0;
     this.active = null;
     this.destroyed = false;
@@ -65,14 +76,18 @@ export class JogWheel extends EventTarget {
 
   _pointerDown(event) {
     if (this.destroyed || this.active || (event.button != null && event.button !== 0)) return;
-    const point = this._polar(event);
-    if (point.radiusRatio < this.options.deadZone) return;
+    if (typeof this.options.filter === "function" && !this.options.filter(event)) return;
+
+    const polar = this.options.mode === "circular" ? this._polar(event) : null;
+    if (polar && polar.radiusRatio < this.options.deadZone) return;
     if (this.options.preventDefault) event.preventDefault();
 
     const time = event.timeStamp / 1000;
     this.active = {
       pointerId: event.pointerId,
-      previousAngle: point.angle,
+      previousAngle: polar?.angle ?? 0,
+      previousX: event.clientX,
+      previousY: event.clientY,
       samples: [{ time, value: this.angle }],
       startAngle: this.angle,
       velocity: 0
@@ -80,11 +95,14 @@ export class JogWheel extends EventTarget {
     this.element.setPointerCapture?.(event.pointerId);
     this._emit("start", {
       source: "pointer",
+      mode: this.options.mode,
       pointerId: event.pointerId,
       timeStamp: event.timeStamp,
       angle: this.angle,
       turns: this.angle / TAU,
-      radiusRatio: point.radiusRatio
+      deltaX: 0,
+      deltaY: 0,
+      radiusRatio: polar?.radiusRatio
     });
   }
 
@@ -97,28 +115,50 @@ export class JogWheel extends EventTarget {
     const sourcePoints = coalesced.length ? coalesced : [event];
     const points = [];
     let totalDelta = 0;
+    let totalX = 0;
+    let totalY = 0;
 
     for (const source of sourcePoints) {
-      const polar = this._polar(source);
-      if (polar.radiusRatio < this.options.deadZone) {
+      const deltaX = source.clientX - active.previousX;
+      const deltaY = source.clientY - active.previousY;
+      active.previousX = source.clientX;
+      active.previousY = source.clientY;
+      totalX += deltaX;
+      totalY += deltaY;
+
+      let deltaAngle;
+      let authority = 1;
+      let radiusRatio;
+
+      if (this.options.mode === "relative") {
+        const distance = this.options.axis === "y" ? deltaY : deltaX;
+        deltaAngle = clamp(
+          distance * this.options.radiansPerPixel,
+          -this.options.maxDelta,
+          this.options.maxDelta
+        );
+      } else {
+        const polar = this._polar(source);
+        radiusRatio = polar.radiusRatio;
+        if (radiusRatio < this.options.deadZone) {
+          active.previousAngle = polar.angle;
+          continue;
+        }
+        authority = clamp(
+          (radiusRatio - this.options.deadZone) / Math.max(1e-6, this.options.authorityWidth),
+          0,
+          1
+        );
+        deltaAngle = clamp(
+          wrapAngle(polar.angle - active.previousAngle) * authority,
+          -this.options.maxDelta,
+          this.options.maxDelta
+        );
         active.previousAngle = polar.angle;
-        continue;
       }
 
-      const authority = clamp(
-        (polar.radiusRatio - this.options.deadZone) / Math.max(1e-6, this.options.authorityWidth),
-        0,
-        1
-      );
-      const deltaAngle = clamp(
-        wrapAngle(polar.angle - active.previousAngle) * authority,
-        -this.options.maxDelta,
-        this.options.maxDelta
-      );
-      active.previousAngle = polar.angle;
       this.angle += deltaAngle;
       totalDelta += deltaAngle;
-
       const time = source.timeStamp / 1000;
       active.samples.push({ time, value: this.angle });
       active.samples = active.samples.filter(sample => time - sample.time <= this.options.velocityWindow);
@@ -127,9 +167,11 @@ export class JogWheel extends EventTarget {
         timeStamp: source.timeStamp,
         angle: this.angle,
         deltaAngle,
+        deltaX,
+        deltaY,
         turns: this.angle / TAU,
         velocity: active.velocity,
-        radiusRatio: polar.radiusRatio,
+        radiusRatio,
         authority
       });
     }
@@ -137,10 +179,13 @@ export class JogWheel extends EventTarget {
     if (!points.length) return;
     this._emit("move", {
       source: "pointer",
+      mode: this.options.mode,
       pointerId: event.pointerId,
       timeStamp: event.timeStamp,
       angle: this.angle,
       deltaAngle: totalDelta,
+      deltaX: totalX,
+      deltaY: totalY,
       gestureAngle: this.angle - active.startAngle,
       turns: this.angle / TAU,
       velocity: active.velocity,
@@ -155,6 +200,7 @@ export class JogWheel extends EventTarget {
     this.active = null;
     this._emit("end", {
       source: "pointer",
+      mode: this.options.mode,
       pointerId: event.pointerId,
       timeStamp: event.timeStamp,
       angle: this.angle,
@@ -166,24 +212,30 @@ export class JogWheel extends EventTarget {
   }
 
   _keyDown(event) {
+    if (event.target !== this.element) return;
     const direction = event.key === "ArrowLeft" || event.key === "ArrowDown" ? -1
       : event.key === "ArrowRight" || event.key === "ArrowUp" ? 1
         : 0;
     if (!direction) return;
     event.preventDefault();
     const deltaAngle = direction * this.options.keyboardStep;
+    const deltaPixels = deltaAngle / this.options.radiansPerPixel;
+    const deltaX = this.options.axis === "x" ? deltaPixels : 0;
+    const deltaY = this.options.axis === "y" ? deltaPixels : 0;
     const startAngle = this.angle;
-    const common = { source: "keyboard", timeStamp: event.timeStamp };
-    this._emit("start", { ...common, angle: startAngle, turns: startAngle / TAU });
+    const common = { source: "keyboard", mode: this.options.mode, timeStamp: event.timeStamp };
+    this._emit("start", { ...common, angle: startAngle, turns: startAngle / TAU, deltaX: 0, deltaY: 0 });
     this.angle += deltaAngle;
     this._emit("move", {
       ...common,
       angle: this.angle,
       deltaAngle,
+      deltaX,
+      deltaY,
       gestureAngle: deltaAngle,
       turns: this.angle / TAU,
       velocity: 0,
-      points: [{ ...common, angle: this.angle, deltaAngle, turns: this.angle / TAU, velocity: 0, authority: 1 }]
+      points: [{ ...common, angle: this.angle, deltaAngle, deltaX, deltaY, turns: this.angle / TAU, velocity: 0, authority: 1 }]
     });
     this._emit("end", { ...common, angle: this.angle, gestureAngle: deltaAngle, turns: this.angle / TAU, velocity: 0, cancelled: false });
   }

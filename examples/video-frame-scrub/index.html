@@ -1,0 +1,41 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<meta name="theme-color" content="#000000" />
+<title>Gesture-only video frame scrubber</title>
+<style>
+  * { box-sizing: border-box; }
+  html, body { margin: 0; width: 100%; height: 100%; overflow: hidden; background: #000; color: #fff; font-family: system-ui, sans-serif; }
+  .stage { position: fixed; inset: 0; touch-action: none; cursor: ew-resize; outline: none; }
+  .stage.dragging { cursor: grabbing; }
+  video { width: 100%; height: 100%; object-fit: contain; pointer-events: none; background: #000; }
+  .empty { position: absolute; inset: 0; display: grid; place-items: center; color: #aaa; pointer-events: none; text-align: center; padding: 2rem; }
+  .loaded .empty { display: none; }
+  .hint { position: absolute; left: 50%; bottom: 5.5rem; transform: translateX(-50%); padding: .5rem .8rem; border-radius: 999px; background: rgb(0 0 0 / .58); font-size: .8rem; pointer-events: none; white-space: nowrap; }
+  .controls { position: absolute; z-index: 2; left: max(1rem, env(safe-area-inset-left)); right: max(1rem, env(safe-area-inset-right)); bottom: max(1rem, env(safe-area-inset-bottom)); display: flex; align-items: center; justify-content: center; flex-wrap: wrap; gap: .55rem; }
+  button, input { font: inherit; color: inherit; }
+  button, label, output { border: 1px solid rgb(255 255 255 / .22); border-radius: 999px; background: rgb(10 10 10 / .78); backdrop-filter: blur(10px); min-height: 2.5rem; padding: .55rem .9rem; }
+  button { cursor: pointer; }
+  label { display: flex; align-items: center; gap: .45rem; }
+  input[type="number"] { width: 4.2rem; border: 0; background: transparent; padding: 0; }
+  output { min-width: 10rem; text-align: center; font-variant-numeric: tabular-nums; }
+</style>
+</head>
+<body>
+<main class="stage" id="stage" aria-label="Video frame scrub surface">
+  <video id="video" playsinline preload="auto"></video>
+  <div class="empty">Load a local video, then drag anywhere on the picture.</div>
+  <div class="hint">← drag → · one CSS pixel = one frame · arrow keys = one frame</div>
+  <div class="controls">
+    <input id="file" type="file" accept="video/*" hidden />
+    <button id="load" type="button">Load video</button>
+    <label>FPS <input id="fps" type="number" min="1" max="240" step="0.001" value="30" inputmode="decimal" /></label>
+    <output id="readout">frame — / —</output>
+    <button id="fullscreen" type="button">Fullscreen</button>
+  </div>
+</main>
+<script type="module" src="./app.js"></script>
+</body>
+</html>

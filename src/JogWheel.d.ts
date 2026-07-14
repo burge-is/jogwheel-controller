@@ -1,5 +1,8 @@
 export interface JogWheelOptions {
   angle?: number;
+  mode?: "circular" | "relative";
+  axis?: "x" | "y";
+  radiansPerPixel?: number;
   deadZone?: number;
   authorityWidth?: number;
   maxDelta?: number;
@@ -8,13 +11,17 @@ export interface JogWheelOptions {
   keyboard?: boolean;
   keyboardStep?: number;
   preventDefault?: boolean;
+  filter?: ((event: PointerEvent) => boolean) | null;
 }
 
 export interface JogWheelPoint {
   source?: "pointer" | "keyboard";
+  mode?: "circular" | "relative";
   timeStamp: number;
   angle: number;
   deltaAngle: number;
+  deltaX: number;
+  deltaY: number;
   turns: number;
   velocity: number;
   radiusRatio?: number;
@@ -23,10 +30,13 @@ export interface JogWheelPoint {
 
 export interface JogWheelEventDetail {
   source: "pointer" | "keyboard";
+  mode: "circular" | "relative";
   pointerId?: number;
   timeStamp: number;
   angle: number;
   deltaAngle?: number;
+  deltaX?: number;
+  deltaY?: number;
   gestureAngle?: number;
   turns: number;
   velocity?: number;
@@ -38,6 +48,8 @@ export interface JogWheelEventDetail {
 export interface JogWheelActiveState {
   pointerId: number;
   previousAngle: number;
+  previousX: number;
+  previousY: number;
   startAngle: number;
   velocity: number;
 }
@@ -45,7 +57,7 @@ export interface JogWheelActiveState {
 export class JogWheel extends EventTarget {
   constructor(element: Element, options?: JogWheelOptions);
   readonly element: Element;
-  readonly options: Readonly<Required<JogWheelOptions>>;
+  readonly options: JogWheelOptions;
   angle: number;
   readonly active: JogWheelActiveState | null;
   readonly destroyed: boolean;

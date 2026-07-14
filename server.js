@@ -23,15 +23,16 @@ function resolveRequest(rawUrl) {
     return { error: 400 };
   }
 
-  if (pathname === "/" || pathname === "/examples/dual-dj") {
-    return { redirect: "/examples/dual-dj/" };
+  if (pathname === "/") return { redirect: "/examples/" };
+  if (["/examples", "/examples/dual-dj", "/examples/video-frame-scrub"].includes(pathname)) {
+    return { redirect: `${pathname}/` };
   }
-  if (pathname === "/examples/dual-dj/") pathname += "index.html";
+  if (pathname.startsWith("/examples/") && pathname.endsWith("/")) pathname += "index.html";
   if (pathname.includes("\0") || pathname.split("/").some(part => part.startsWith("."))) {
     return { error: 403 };
   }
 
-  const allowedPrefix = pathname.startsWith("/src/") || pathname.startsWith("/examples/dual-dj/");
+  const allowedPrefix = pathname.startsWith("/src/") || pathname.startsWith("/examples/");
   if (!allowedPrefix || !allowedExtensions.has(path.extname(pathname).toLowerCase())) {
     return { error: 403 };
   }

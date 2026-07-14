@@ -7,7 +7,7 @@
   "scripts": {
     "start": "node server.js",
     "test": "node --test",
-    "check": "node --check src/JogWheel.js && node --check examples/dual-dj/app.js && node --check examples/dual-dj/scratch-worklet.js && node --check server.js && node --test"
+    "check": "node --check src/JogWheel.js && node --check examples/dual-dj/app.js && node --check examples/dual-dj/scratch-worklet.js && node --check examples/video-frame-scrub/app.js && node --check server.js && node --test"
   },
   "license": "MIT",
   "engines": {

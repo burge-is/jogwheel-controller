@@ -18,5 +18,6 @@ jobs:
       - run: node --check src/JogWheel.js
       - run: node --check examples/dual-dj/app.js
       - run: node --check examples/dual-dj/scratch-worklet.js
+      - run: node --check examples/video-frame-scrub/app.js
       - run: node --check server.js
       - run: node --test
