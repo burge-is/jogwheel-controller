@@ -1,8 +1,9 @@
 export interface JogWheelOptions {
   angle?: number;
-  mode?: "circular" | "relative";
+  mode?: "circular" | "platter" | "relative";
   axis?: "x" | "y";
   radiansPerPixel?: number;
+  platterRadius?: number;
   deadZone?: number;
   authorityWidth?: number;
   maxDelta?: number;
@@ -16,7 +17,7 @@ export interface JogWheelOptions {
 
 export interface JogWheelPoint {
   source?: "pointer" | "keyboard";
-  mode?: "circular" | "relative";
+  mode?: "circular" | "platter" | "relative";
   timeStamp: number;
   angle: number;
   deltaAngle: number;
@@ -30,7 +31,7 @@ export interface JogWheelPoint {
 
 export interface JogWheelEventDetail {
   source: "pointer" | "keyboard";
-  mode: "circular" | "relative";
+  mode: "circular" | "platter" | "relative";
   pointerId?: number;
   timeStamp: number;
   angle: number;
@@ -50,6 +51,9 @@ export interface JogWheelActiveState {
   previousAngle: number;
   previousX: number;
   previousY: number;
+  virtualX: number;
+  virtualY: number;
+  platterRadius: number;
   startAngle: number;
   velocity: number;
 }

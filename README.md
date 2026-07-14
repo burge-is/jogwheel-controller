@@ -1,6 +1,6 @@
 # JogWheel
 
-A dependency-free, multi-input gesture controller for the web. Circular mode turns movement around an element into precise angular events. Relative mode turns an invisible full-surface drag into movement and virtual-rotation events. It does not require a visual wheel or assume that the gesture controls audio, video, or any particular UI.
+A dependency-free, multi-input gesture controller for the web. Circular mode tracks a visible wheel. Platter mode projects a grab anywhere in a surface onto an invisible virtual rim while preserving tangential jogwheel mechanics. Relative mode provides direct linear movement. It does not assume that the gesture controls audio, video, or any particular UI.
 
 Examples include a [dual-deck scratch lab](./examples/dual-dj/) and a [gesture-only frame scrubber](./examples/video-frame-scrub/).
 
@@ -8,7 +8,7 @@ Examples include a [dual-deck scratch lab](./examples/dual-dj/) and a [gesture-o
 
 - Pointer Events with pointer capture
 - Coalesced high-frequency pointer samples
-- Circular and visual-free relative gesture modes
+- Circular, grab-anywhere platter, and direct relative modes
 - Raw `deltaX` and `deltaY` in relative mode
 - Correct angle wrapping across the ±π boundary
 - Configurable center dead zone and edge authority
@@ -53,7 +53,8 @@ No installation step, package registry, build process, or runtime dependency is 
 | Option | Default | Meaning |
 | --- | ---: | --- |
 | `angle` | `0` | Initial cumulative angle in radians |
-| `mode` | `"circular"` | `"circular"` or visual-free `"relative"` tracking |
+| `mode` | `"circular"` | `"circular"`, grab-anywhere `"platter"`, or linear `"relative"` tracking |
+| `platterRadius` | `72` | Virtual rim radius in CSS pixels for platter mode |
 | `axis` | `"x"` | Relative mode's virtual-rotation axis: `"x"` or `"y"` |
 | `radiansPerPixel` | `2π / 360` | Relative-mode conversion from pixels to virtual radians |
 | `deadZone` | `0.25` | Circular mode's ignored center-radius ratio |
@@ -85,18 +86,18 @@ The target element also emits bubbling `jogwheel:start`, `jogwheel:move`, and `j
 - `wheel.setAngle(radians)` — replace the cumulative angle
 - `wheel.destroy()` — remove listeners and restore modified element state
 
-## Visual-free relative gestures
+## Visual-free platter gestures
 
-Use the entire surface without rendering a wheel:
+Use an entire surface as an invisible platter. Every initial contact is projected onto the virtual rim, so the gesture can start anywhere:
 
 ```js
 const gesture = new JogWheel(videoSurface, {
-  mode: "relative",
-  axis: "x"
+  mode: "platter",
+  platterRadius: 72
 });
 
 gesture.addEventListener("move", ({ detail }) => {
-  timeline.moveBy(detail.deltaX);
+  timeline.rotateBy(detail.deltaAngle);
 });
 ```
 

@@ -4,6 +4,7 @@ const DEFAULTS = Object.freeze({
   mode: "circular",
   axis: "x",
   radiansPerPixel: TAU / 360,
+  platterRadius: 72,
   deadZone: 0.25,
   authorityWidth: 0.2,
   maxDelta: 1.1,
@@ -28,8 +29,8 @@ export class JogWheel extends EventTarget {
 
     this.element = element;
     this.options = { ...DEFAULTS, ...options };
-    if (!['circular', 'relative'].includes(this.options.mode)) {
-      throw new TypeError('mode must be "circular" or "relative"');
+    if (!["circular", "platter", "relative"].includes(this.options.mode)) {
+      throw new TypeError('mode must be "circular", "platter", or "relative"');
     }
     if (!['x', 'y'].includes(this.options.axis)) {
       throw new TypeError('axis must be "x" or "y"');
@@ -78,16 +79,21 @@ export class JogWheel extends EventTarget {
     if (this.destroyed || this.active || (event.button != null && event.button !== 0)) return;
     if (typeof this.options.filter === "function" && !this.options.filter(event)) return;
 
-    const polar = this.options.mode === "circular" ? this._polar(event) : null;
-    if (polar && polar.radiusRatio < this.options.deadZone) return;
+    const polar = this.options.mode === "relative" ? null : this._polar(event);
+    if (this.options.mode === "circular" && polar.radiusRatio < this.options.deadZone) return;
     if (this.options.preventDefault) event.preventDefault();
 
     const time = event.timeStamp / 1000;
+    const platterRadius = Math.max(1, Number(this.options.platterRadius) || 72);
+    const startAngle = polar?.angle ?? 0;
     this.active = {
       pointerId: event.pointerId,
-      previousAngle: polar?.angle ?? 0,
+      previousAngle: startAngle,
       previousX: event.clientX,
       previousY: event.clientY,
+      virtualX: Math.cos(startAngle) * platterRadius,
+      virtualY: Math.sin(startAngle) * platterRadius,
+      platterRadius,
       samples: [{ time, value: this.angle }],
       startAngle: this.angle,
       velocity: 0
@@ -137,6 +143,21 @@ export class JogWheel extends EventTarget {
           -this.options.maxDelta,
           this.options.maxDelta
         );
+      } else if (this.options.mode === "platter") {
+        // Project unrestricted screen movement onto a virtual platter rim.
+        // This preserves the tangential response of a physical wheel while
+        // allowing the initial grab to happen anywhere in the element.
+        active.virtualX += deltaX;
+        active.virtualY += deltaY;
+        const nextAngle = Math.atan2(active.virtualY, active.virtualX);
+        deltaAngle = clamp(
+          wrapAngle(nextAngle - active.previousAngle),
+          -this.options.maxDelta,
+          this.options.maxDelta
+        );
+        active.previousAngle += deltaAngle;
+        active.virtualX = Math.cos(active.previousAngle) * active.platterRadius;
+        active.virtualY = Math.sin(active.previousAngle) * active.platterRadius;
       } else {
         const polar = this._polar(source);
         radiusRatio = polar.radiusRatio;

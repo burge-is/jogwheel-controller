@@ -6,6 +6,7 @@ This project follows [Semantic Versioning](https://semver.org/).
 
 - Added visual-free relative gesture mode with raw pointer movement deltas.
 - Added a full-screen invisible-platter video example with one-degree-per-frame rotation and release coasting.
+- Frame-locked video seeking keeps the requested and presented positions within one frame while decoding.
 
 ## 1.0.0
 

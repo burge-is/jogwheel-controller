@@ -15,6 +15,8 @@ const COAST_DRAG = 4.8;
 let objectUrl = null;
 let targetFrame = 0;
 let presentedFrame = 0;
+let queuedFrames = 0;
+let frameInFlight = false;
 let frameRemainder = 0;
 let coastRequest = 0;
 let coastVelocity = 0;
@@ -24,6 +26,7 @@ const frameRate = () => Math.max(1, Number(fpsInput.value) || 30);
 const frameCount = () => Number.isFinite(video.duration)
   ? Math.max(1, Math.floor(video.duration * frameRate()))
   : 1;
+const boundFrame = frame => Math.max(0, Math.min(frameCount() - 1, frame));
 
 function showFrames() {
   if (!video.src) {
@@ -33,12 +36,34 @@ function showFrames() {
   readout.value = `wanted ${targetFrame} · shown ${presentedFrame} / ${frameCount() - 1}`;
 }
 
-function seekToFrame(frame) {
-  const previous = targetFrame;
-  targetFrame = Math.max(0, Math.min(frameCount() - 1, frame));
-  video.currentTime = Math.min(video.duration || 0, targetFrame / frameRate());
+// Issue only one adjacent frame at a time. Further gesture movement remains in
+// queuedFrames until requestVideoFrameCallback confirms what was presented.
+function pumpFrameQueue() {
+  if (frameInFlight || !video.src || !queuedFrames) return;
+  const direction = Math.sign(queuedFrames);
+  const nextFrame = boundFrame(presentedFrame + direction);
+  if (nextFrame === presentedFrame) {
+    queuedFrames = 0;
+    return;
+  }
+
+  queuedFrames -= direction;
+  targetFrame = nextFrame;
+  frameInFlight = true;
+  const exactTime = targetFrame / frameRate();
+  video.currentTime = Math.min(video.duration || 0, exactTime + 1e-7);
   showFrames();
-  return targetFrame !== previous;
+}
+
+function queueFrameDelta(delta) {
+  if (!delta || !video.src) return false;
+  const inFlightDelta = frameInFlight ? targetFrame - presentedFrame : 0;
+  const queuedDestination = presentedFrame + inFlightDelta + queuedFrames;
+  const boundedDestination = boundFrame(queuedDestination + delta);
+  const accepted = boundedDestination - queuedDestination;
+  queuedFrames += accepted;
+  pumpFrameQueue();
+  return accepted !== 0;
 }
 
 function applyRotation(deltaAngle) {
@@ -46,7 +71,7 @@ function applyRotation(deltaAngle) {
   const frameDelta = Math.trunc(frameRemainder);
   if (!frameDelta) return true;
   frameRemainder -= frameDelta;
-  return seekToFrame(targetFrame + frameDelta);
+  return queueFrameDelta(frameDelta);
 }
 
 function stopCoast() {
@@ -65,9 +90,8 @@ function coast(now) {
 }
 
 const gesture = new JogWheel(stage, {
-  mode: "circular",
-  deadZone: 0.1,
-  authorityWidth: 0.14,
+  mode: "platter",
+  platterRadius: 72,
   maxDelta: 1.1,
   maxVelocity: TAU * 3,
   keyboardStep: TAU / FRAMES_PER_REVOLUTION,
@@ -110,29 +134,40 @@ fileInput.addEventListener("change", () => {
 video.addEventListener("loadedmetadata", () => {
   targetFrame = 0;
   presentedFrame = 0;
+  queuedFrames = 0;
+  frameInFlight = false;
   frameRemainder = 0;
   gesture.setAngle(0);
   stage.classList.add("loaded");
-  seekToFrame(0);
+  video.currentTime = 0;
+  showFrames();
 });
 
 fpsInput.addEventListener("change", () => {
-  targetFrame = Math.round(video.currentTime * frameRate());
-  seekToFrame(targetFrame);
+  stopCoast();
+  queuedFrames = 0;
+  frameInFlight = false;
+  presentedFrame = boundFrame(Math.round(video.currentTime * frameRate()));
+  targetFrame = presentedFrame;
+  showFrames();
 });
+
+function confirmPresentedFrame(mediaTime) {
+  presentedFrame = boundFrame(Math.round(mediaTime * frameRate()));
+  targetFrame = presentedFrame;
+  frameInFlight = false;
+  showFrames();
+  pumpFrameQueue();
+}
 
 if (typeof video.requestVideoFrameCallback === "function") {
   const watchPresentedFrame = (_now, metadata) => {
-    presentedFrame = Math.round(metadata.mediaTime * frameRate());
-    showFrames();
+    confirmPresentedFrame(metadata.mediaTime);
     video.requestVideoFrameCallback(watchPresentedFrame);
   };
   video.requestVideoFrameCallback(watchPresentedFrame);
 } else {
-  video.addEventListener("seeked", () => {
-    presentedFrame = Math.round(video.currentTime * frameRate());
-    showFrames();
-  });
+  video.addEventListener("seeked", () => confirmPresentedFrame(video.currentTime));
 }
 
 fullscreenButton.addEventListener("click", async () => {
